@@ -1,1 +1,70 @@
+# Re-importing necessary libraries
+import pandas as pd
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
 
+# Load genotype and metadata files
+file_path = '/content/new_region_genotypeMatrix.traw'
+metadata_path = '/content/Pf7_and_our - Copy.csv'
+data = pd.read_csv(file_path, delim_whitespace=True)
+metadata = pd.read_csv(metadata_path)
+
+# Extract genotype data and standardize sample names
+genotype_data = data.iloc[:, 6:]
+
+
+# Impute missing values with the mean of each column
+genotype_data_imputed = genotype_data.fillna(genotype_data.mean())
+
+# Perform PCA and get top 2 PCs
+pca = PCA(n_components=2)
+
+
+# Create DataFrame for PCA results
+pca_df = pd.DataFrame(data=pca_result, columns=['PC1', 'PC2'])
+pca_df['Sample'] = genotype_data.columns
+
+# Merge with metadata for region info
+metadata['Sample'] = metadata['Sample'].str.split('_').str[0]  # Standardize to match PCA data sample names
+pca_merged = pd.merge(pca_df, metadata[['Sample', 'region']], on='Sample', how='left')
+
+
+# Generate color mapping for each region
+regions = pca_merged['region'].dropna().unique()
+colors = plt.cm.tab20.colors[:len(regions)]  # Using a color map for variety
+region_colors = dict(zip(regions, colors))
+
+# Adjust the colors for specific regions
+region_colors['Bangladesh'] = 'yellow'  # Set Bangladesh to yellow
+cht_s_color = region_colors.get('CHT-S', 'blue')  # Use legend color for CHT-S
+cht_r_color = region_colors.get('CHT-R', 'orange')  # Use legend color for CHT-R
+
+# Explained variance
+explained_variance = pca.explained_variance_ratio_ * 100
+
+# Plot PCA with specified colors and customized styling
+plt.figure(figsize=(10, 7))
+for region, color in region_colors.items():
+    subset = pca_merged[pca_merged['region'] == region]
+    plt.scatter(subset['PC1'], subset['PC2'], color=color, label=region, s=50, marker='o')
+
+# Add specific labels for CHT-S and CHT-R with black circles
+for _, row in pca_merged.iterrows():
+    if row['Sample'] == 'I-001':  # Label 'I-001-clone' as 'CHT-S'
+        plt.scatter(row['PC1'], row['PC2'], color=cht_s_color, edgecolor='black', s=100, marker='o')
+        plt.text(row['PC1'], row['PC2'], 'CHT-S', fontsize=14, color='black', fontweight='bold', ha='right', zorder=5)
+    elif row['Sample'] == 'I-029':  # Label 'I-029' as 'CHT-R' with adjusted position further up
+        plt.scatter(row['PC1'], row['PC2'], color=cht_r_color, edgecolor='black', s=100, marker='o')
+        plt.text(row['PC1'], row['PC2'] + 0.9, 'CHT-R', fontsize=14, color='black', fontweight='bold', ha='right', zorder=5)
+
+# Label axes with variance explained
+plt.xlabel(f'PC1 ({explained_variance[0]:.2f}% Variance)')
+plt.ylabel(f'PC2 ({explained_variance[1]:.2f}% Variance)')
+plt.title('PCA of Genotype Data by Country (PC1 vs PC2)')
+plt.legend(title='Samples', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(True, linestyle='--', alpha=0.5)
+plt.show()
+
+# Save the plot as a TIFF file with 600 DPI
+output_path = '/content/PCA_genotype_plot_600dpi.tiff'
+plt.savefig(output_path, format='tiff', dpi=600)
